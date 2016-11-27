@@ -32,79 +32,87 @@ const firebaseConfig = {
 };
 const firebaseApp = firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
+const lock = new Auth0Lock({
+  clientId: 'LShnQxjBKHw5zi7dOjs56lEuIaN0J7hT', 
+  domain: 'johnrenko.eu.auth0.com',
+  auth: {
+    responseType: 'token',
+    params: {scope: 'openid name email'}
+  }
+});
+const auth0 = new Auth0({
+  domain:       'johnrenko.eu.auth0.com',
+  clientID:     'LShnQxjBKHw5zi7dOjs56lEuIaN0J7hT',
+  responseType: 'token'
+});
+
 
 class LogIn extends React.Component {
-  componentDidMount() {
-    const lock = new Auth0Lock({
-      clientId: 'LShnQxjBKHw5zi7dOjs56lEuIaN0J7hT', 
-      domain: 'johnrenko.eu.auth0.com'
-    });
+  state = {
+    loggedIn: false,
+    userProfile: {},
+    userToken: {},
+    delegationToken: {}
+  };
+
+  constructor(){
+    super();
+    this.onPress = this.onPress.bind(this);
+  }
+
+  login() {
+
     lock.show({}, (err, profile, token) => {
       if (err) {
         console.log(err);
         return;
-      }
-      const options = {
-          id_token : token.idToken,
-          api : 'firebase',
-          scope : 'openid name email displayName',
-          target: 'LShnQxjBKHw5zi7dOjs56lEuIaN0J7hT'
       };
-        const auth0 = new Auth0({
-          domain:       'johnrenko.eu.auth0.com',
-          clientID:     'JgHeQwYZvgF5yoeMNQ8KWgg23DUzCTRI',
-          callbackURL:  'http://google.fr',
-          responseType: 'token'
-        });
-      auth0.getDelegationToken(options, function(err, result) {
 
-        if(!err) {
-          // Exchange the delegate token for a Firebase auth token
-          firebase.auth().signInWithCustomToken(result.id_token).catch(function(error) {
-            console.log(error);
-          });
-        }
+      this.setState({
+        userProfile: profile,
+        userToken: token.idToken,
+        loggedIn: false
       });
-      firebase.auth().onAuthStateChanged(function(user) {
-      if (user) {
-          const uid = user.uid;
-          const firebase_user_ref = database.ref('users/');
-          firebase_user_ref.push({
-            "text": uid
-          });
 
-      } else {
-          const firebase_user_ref = database.ref('users/');
-          firebase_user_ref.push({
-            "text": "test"
-          });
-        }
+      const options = {
+        id_token : this.state.userToken,
+        api : 'firebase',
+        scope : 'openid',
+        target: 'LShnQxjBKHw5zi7dOjs56lEuIaN0J7hT'
+      };
+
+      auth0.getDelegationToken(options, function(err, result) {
+        firebase.auth().signInWithCustomToken(result.id_token).catch(function(error) {
+          console.log(error);
+        });
+      });
+
+      firebase.database().ref('users').set({
+        userId: this.state.userProfile.userId
       });
     });
   }
 
   onPress() {
-    firebase.auth().onAuthStateChanged(function(user) {
-      if (user) {
-          const uid = user.uid;
-
-      } else {
-          const firebase_user_ref = database.ref('users/');
-          firebase_user_ref.push({
-            "text": "I'm logged in!",
-            "date": new Date().getTime(),
-          });
-      }
+    firebase.auth().signOut().then(function() {
+      console.log("Logged Out");
+    }, function(error) {
+    // An error happened.
+    });
+    this.setState({
+      loggedIn: true
     });
   }
 
-
   render () {
+    {this.state.loggedIn ? this.login() : null}
+    
+
     return (
       <ScrollView style={styles.container}>
         <KeyboardAvoidingView behavior='position'>
           <Button
-            title='BUTTON' onPress={this.onPress()} />
+            title='LogOut' onPress={this.onPress} />
         </KeyboardAvoidingView>
       </ScrollView>
     )
